@@ -162,6 +162,13 @@ st.markdown("""
     .stDataFrame {
         font-size: 0.9em;
     }
+    /* Highlight category-subcategory relationship */
+    .category-info {
+        background: #f0f2f6;
+        padding: 1em;
+        border-radius: 8px;
+        margin-bottom: 1em;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -169,25 +176,51 @@ st.title("💸 Expense Tracker")
 
 init_db()
 
+# Initialize session state for category if not exists
+if 'selected_category' not in st.session_state:
+    st.session_state.selected_category = CATEGORIES[0]
+
 # Tabs for better organization on mobile
 tab1, tab2, tab3 = st.tabs(["➕ Add", "📊 Stats", "📋 History"])
 
 with tab1:
     st.subheader("Add New Expense")
     
+    # Step 1: Category selection (outside form)
+    st.markdown("### Step 1: Select Category")
+    cat = st.selectbox(
+        "Category",
+        CATEGORIES,
+        format_func=lambda x: f"{CATEGORY_EMOJI.get(x, '')} {x}",
+        key="category_select",
+        label_visibility="collapsed"
+    )
+    
+    # Store in session state
+    st.session_state.selected_category = cat
+    
+    # Show available subcategories for this category
+    available_subcats = SUBCATEGORIES.get(cat, ["Other"])
+    st.markdown(f"""
+    <div class="category-info">
+        <small>📑 Available subcategories for <strong>{cat}</strong>:</small><br>
+        <small>{', '.join(available_subcats)}</small>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Step 2: Rest of the form
+    st.markdown("### Step 2: Enter Details")
     with st.form("entry_form", clear_on_submit=True):
-        d = st.date_input("📅 Date", value=date.today())
+        # Use the category from session state
+        current_cat = st.session_state.selected_category
         
-        cat = st.selectbox(
-            "🏷️ Category",
-            CATEGORIES,
-            format_func=lambda x: f"{CATEGORY_EMOJI.get(x, '')} {x}"
-        )
-        
+        # Subcategory dropdown with current category's options
         subcat = st.selectbox(
             "📑 Subcategory",
-            SUBCATEGORIES.get(cat, ["Other"])
+            SUBCATEGORIES.get(current_cat, ["Other"])
         )
+        
+        d = st.date_input("📅 Date", value=date.today())
         
         col1, col2 = st.columns(2)
         with col1:
@@ -208,7 +241,7 @@ with tab1:
         if amt <= 0:
             st.error("⚠️ Amount must be greater than 0.")
         else:
-            insert_row(d, cat, subcat, pay, amt, notes)
+            insert_row(d, current_cat, subcat, pay, amt, notes)
             st.success("✅ Expense saved!")
             st.balloons()
 
