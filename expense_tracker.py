@@ -39,7 +39,7 @@ SUBCATEGORIES = {
 
 PAY_MODES = ["UPI", "Cash", "Card", "Wallet"]
 
-# Category emoji mapping for better mobile UX
+# Category emoji mapping
 CATEGORY_EMOJI = {
     "Travel": "🚗",
     "Food-Order": "🍕",
@@ -135,12 +135,32 @@ st.set_page_config(
 # Custom CSS for mobile optimization
 st.markdown("""
 <style>
+    /* Compact layout */
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 1rem;
+        max-width: 800px;
+    }
+    
+    /* Form styling */
+    [data-testid="stForm"] {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 1rem;
+        background: #fafafa;
+    }
+    
+    /* Button styling */
     .stButton>button {
         width: 100%;
         height: 3em;
         font-size: 1.1em;
         font-weight: 600;
+        margin-top: 0.5em;
+        border-radius: 8px;
     }
+    
+    /* Metric cards */
     .metric-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 1.2em;
@@ -158,16 +178,35 @@ st.markdown("""
         font-size: 0.9em;
         opacity: 0.9;
     }
-    /* Make dataframe more mobile friendly */
+    
+    /* Reduce spacing */
+    .stSelectbox, .stDateInput, .stNumberInput, .stTextInput {
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Header spacing */
+    h2, h3 {
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 4px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.5rem 1rem;
+    }
+    
+    /* Column spacing */
+    [data-testid="column"] {
+        padding: 0 0.3rem;
+    }
+    
+    /* Dataframe */
     .stDataFrame {
         font-size: 0.9em;
-    }
-    /* Highlight category-subcategory relationship */
-    .category-info {
-        background: #f0f2f6;
-        padding: 1em;
-        border-radius: 8px;
-        margin-bottom: 1em;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -176,87 +215,72 @@ st.title("💸 Expense Tracker")
 
 init_db()
 
-# Initialize session state for category if not exists
-if 'selected_category' not in st.session_state:
-    st.session_state.selected_category = CATEGORIES[0]
-
-# Tabs for better organization on mobile
+# Tabs
 tab1, tab2, tab3 = st.tabs(["➕ Add", "📊 Stats", "📋 History"])
 
 with tab1:
-    st.subheader("Add New Expense")
+    st.subheader("Add Expense")
     
-    # Step 1: Category selection (outside form)
-    st.markdown("### Step 1: Select Category")
-    cat = st.selectbox(
-        "Category",
-        CATEGORIES,
-        format_func=lambda x: f"{CATEGORY_EMOJI.get(x, '')} {x}",
-        key="category_select",
-        label_visibility="collapsed"
-    )
-    
-    # Store in session state
-    st.session_state.selected_category = cat
-    
-    # Show available subcategories for this category
-    available_subcats = SUBCATEGORIES.get(cat, ["Other"])
-    st.markdown(f"""
-    <div class="category-info">
-        <small>📑 Available subcategories for <strong>{cat}</strong>:</small><br>
-        <small>{', '.join(available_subcats)}</small>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Step 2: Rest of the form
-    st.markdown("### Step 2: Enter Details")
-    with st.form("entry_form", clear_on_submit=True):
-        # Use the category from session state
-        current_cat = st.session_state.selected_category
-        
-        # Subcategory dropdown with current category's options
-        subcat = st.selectbox(
-            "📑 Subcategory",
-            SUBCATEGORIES.get(current_cat, ["Other"])
+    # Category and Subcategory outside form (for dynamic update)
+    col1, col2 = st.columns(2)
+    with col1:
+        cat = st.selectbox(
+            "Category",
+            CATEGORIES,
+            format_func=lambda x: f"{CATEGORY_EMOJI.get(x, '')} {x}",
+            key="category_select"
         )
-        
-        d = st.date_input("📅 Date", value=date.today())
-        
-        col1, col2 = st.columns(2)
+    with col2:
+        subcat = st.selectbox(
+            "Subcategory",
+            SUBCATEGORIES.get(cat, ["Other"]),
+            key="subcategory_select"
+        )
+    
+    # Form for submission
+    with st.form("entry_form", clear_on_submit=True):
+        # Date and Amount
+        col1, col2 = st.columns([1, 1])
         with col1:
-            pay = st.selectbox("💳 Payment", PAY_MODES)
+            d = st.date_input("Date", value=date.today())
         with col2:
             amt = st.number_input(
-                "💰 Amount (₹)",
+                "Amount (₹)",
                 min_value=0.0,
                 step=50.0,
-                format="%.2f"
+                format="%.2f",
+                value=0.0
             )
         
-        notes = st.text_input("📝 Notes (optional)")
+        # Payment mode
+        pay = st.selectbox("Payment Mode", PAY_MODES)
         
-        submitted = st.form_submit_button("💾 Save Expense", use_container_width=True)
+        # Notes
+        notes = st.text_input("Notes (optional)", placeholder="e.g., Lunch with friends")
+        
+        # Submit button
+        submitted = st.form_submit_button("💾 Save Expense", use_container_width=True, type="primary")
     
     if submitted:
         if amt <= 0:
             st.error("⚠️ Amount must be greater than 0.")
         else:
-            insert_row(d, current_cat, subcat, pay, amt, notes)
+            insert_row(d, cat, subcat, pay, amt, notes)
             st.success("✅ Expense saved!")
             st.balloons()
 
 with tab2:
-    st.subheader("Summary Statistics")
+    st.subheader("Statistics")
     
     df = load_df()
     stats = get_summary_stats(df)
     
-    # Display metrics in cards
+    # Metrics
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"""
         <div class="metric-card">
-            <div class="metric-label">Today's Spending</div>
+            <div class="metric-label">Today</div>
             <div class="metric-value">₹{stats['today']:,.0f}</div>
         </div>
         """, unsafe_allow_html=True)
@@ -278,15 +302,14 @@ with tab2:
         
         st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
-            <div class="metric-label">Avg Daily (30d)</div>
+            <div class="metric-label">Daily Avg (30d)</div>
             <div class="metric-value">₹{stats['avg_daily']:,.0f}</div>
         </div>
         """, unsafe_allow_html=True)
     
     if not df.empty:
-        st.subheader("Spending by Category")
+        st.subheader("Category Breakdown")
         
-        # Category breakdown
         category_sum = df.groupby('category')['amount'].sum().reset_index()
         category_sum = category_sum.sort_values('amount', ascending=False)
         
@@ -300,13 +323,12 @@ with tab2:
         fig.update_traces(textposition='inside', textinfo='percent+label')
         fig.update_layout(
             showlegend=False,
-            height=400,
-            margin=dict(t=20, b=20, l=20, r=20)
+            height=350,
+            margin=dict(t=10, b=10, l=10, r=10)
         )
         st.plotly_chart(fig, use_container_width=True)
         
-        # Daily spending trend
-        st.subheader("Daily Spending Trend")
+        st.subheader("Daily Trend")
         daily_sum = df.groupby('expense_date')['amount'].sum().reset_index()
         daily_sum = daily_sum.sort_values('expense_date')
         
@@ -317,24 +339,24 @@ with tab2:
             markers=True
         )
         fig2.update_layout(
-            xaxis_title="Date",
+            xaxis_title="",
             yaxis_title="Amount (₹)",
-            height=300,
-            margin=dict(t=20, b=20, l=20, r=20)
+            height=250,
+            margin=dict(t=10, b=10, l=10, r=10)
         )
         st.plotly_chart(fig2, use_container_width=True)
 
 with tab3:
-    st.subheader("Expense History")
+    st.subheader("History")
     
     df = load_df()
     
     if not df.empty:
-        # Filters
+        # Compact filters
         col1, col2 = st.columns(2)
         with col1:
             filter_cat = st.multiselect(
-                "Filter by Category",
+                "Category",
                 options=CATEGORIES,
                 default=[]
             )
@@ -355,43 +377,52 @@ with tab3:
                 (filtered_df['expense_date'].dt.date <= date_range[1])
             ]
         
-        st.markdown(f"**Total:** ₹{filtered_df['amount'].sum():,.2f} | **Count:** {len(filtered_df)}")
+        st.metric("Total", f"₹{filtered_df['amount'].sum():,.2f}", delta=f"{len(filtered_df)} entries")
         
-        # Display with emoji
+        # Display
         display_df = filtered_df.copy()
         display_df['Category'] = display_df['category'].apply(
             lambda x: f"{CATEGORY_EMOJI.get(x, '')} {x}"
         )
-        display_df['Date'] = display_df['expense_date'].dt.strftime('%Y-%m-%d')
-        display_df['Amount'] = display_df['amount'].apply(lambda x: f"₹{x:,.2f}")
+        display_df['Date'] = display_df['expense_date'].dt.strftime('%b %d')
+        display_df['Amount'] = display_df['amount'].apply(lambda x: f"₹{x:,.0f}")
         
-        show_cols = ['Date', 'Category', 'subcategory', 'payment_mode', 'Amount', 'notes']
+        show_cols = ['Date', 'Category', 'subcategory', 'payment_mode', 'Amount']
         st.dataframe(
             display_df[show_cols],
             hide_index=True,
-            use_container_width=True
+            use_container_width=True,
+            height=400
         )
         
-        # Export button
-        if st.button("📥 Export to CSV", use_container_width=True):
-            export_csv(filtered_df)
-            st.success(f"✅ Exported to {CSV_PATH}")
+        # Actions
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📥 Export CSV", use_container_width=True):
+                export_csv(filtered_df)
+                st.success(f"✅ Exported to {CSV_PATH}")
         
-        # Delete functionality
-        st.subheader("Delete Expense")
-        expense_to_delete = st.selectbox(
-            "Select expense to delete",
-            options=filtered_df['id'].tolist(),
-            format_func=lambda x: f"ID {x}: {filtered_df[filtered_df['id']==x].iloc[0]['category']} - ₹{filtered_df[filtered_df['id']==x].iloc[0]['amount']:.2f}"
-        )
+        with col2:
+            if st.button("🗑️ Delete Mode", use_container_width=True):
+                st.session_state.delete_mode = not st.session_state.get('delete_mode', False)
         
-        if st.button("🗑️ Delete Selected", use_container_width=True):
-            delete_expense(expense_to_delete)
-            st.success("✅ Expense deleted!")
-            st.rerun()
+        # Delete section
+        if st.session_state.get('delete_mode', False):
+            st.warning("⚠️ Delete Mode Active")
+            expense_to_delete = st.selectbox(
+                "Select expense",
+                options=filtered_df['id'].tolist(),
+                format_func=lambda x: f"{filtered_df[filtered_df['id']==x].iloc[0]['category']} - ₹{filtered_df[filtered_df['id']==x].iloc[0]['amount']:.0f} ({filtered_df[filtered_df['id']==x].iloc[0]['expense_date'].strftime('%b %d')})"
+            )
+            
+            if st.button("🗑️ Confirm Delete", use_container_width=True, type="primary"):
+                delete_expense(expense_to_delete)
+                st.success("✅ Deleted!")
+                st.session_state.delete_mode = False
+                st.rerun()
     else:
-        st.info("No expenses recorded yet. Add your first expense in the 'Add' tab!")
+        st.info("📭 No expenses yet. Add your first one in the Add tab!")
 
 # Footer
 st.divider()
-st.caption(f"📂 Database: `{os.path.abspath(DB_PATH)}`")
+st.caption(f"💾 Database: `{os.path.basename(DB_PATH)}`")
